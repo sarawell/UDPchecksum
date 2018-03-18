@@ -16,29 +16,84 @@ int main()
 {
 	struct pcap_file_header *file_header;
 	struct pcap_pkthdr *ptk_header;
+	FramHeader_t *fheader;
 	IPHeader_t *ip_header;
 	UDPHeader_t *udp_header;
 	UDP_H *udp_h;
 	FILE *fr, *fw;
-	
-	
+
+
 	file_header = (struct pcap_file_header *)malloc(sizeof(struct pcap_file_header));
-	ptk_header = (struct pcap_pkthdr *)malloc(sizeof(struct pcap_pkthdr));
-	ip_header = (IPHeader_t *)malloc(sizeof(IPHeader_t));
-	udp_header = (UDPHeader_t *)malloc(sizeof(UDPHeader_t));
-	udp_h = (UDP_H*)malloc(sizeof(UDP_H));
-	fr = fopen("test.pcap", "r");
-	if (fr==NULL)
+	
+	fr = fopen("test.pcap", "rb");
+	if (fr == NULL)
 	{
 		printf("文件打开失败\n");
 		exit(0);
 	}
-	
-	if (fread(file_header, 24, 1, fr) !=1)//读取文件头
+
+	if (fread(file_header, 24, 1, fr) != 1)//读取文件头
 	{
 		printf("文件头读取失败\n");
 		exit(0);
 	}
+	//int cc = 40;
+	//while (cc>0)
+	if(!feof(fr))
+	{
+		ptk_header = (struct pcap_pkthdr *)malloc(sizeof(struct pcap_pkthdr));
+		fheader = (FramHeader_t *)malloc(sizeof(FramHeader_t));
+		ip_header = (IPHeader_t *)malloc(sizeof(IPHeader_t));
+		udp_header = (UDPHeader_t *)malloc(sizeof(UDPHeader_t));
+		udp_h = (UDP_H*)malloc(sizeof(UDP_H));
+		int buff_size = 0;
+		fread(ptk_header, 16, 1, fr);
+		buff_size = ptk_header->caplen;
+		u_char* buff = (u_char*)malloc(buff_size);
+		fread(buff, buff_size, 1, fr);
+		//for (int i = 0; i < buff_size; i++)
+		//{
+		//	printf("%02x", buff[i]);
+		//	//printf("\n");
+		//}
+		memset(fheader, 0x00, sizeof(FramHeader_t));
+		memcpy(fheader, (u_char*)buff, sizeof(FramHeader_t));
+		memcpy(ip_header, (u_char*)buff + sizeof(FramHeader_t), sizeof(IPHeader_t));
+		memcpy(udp_header, (u_char*)buff + sizeof(FramHeader_t) + sizeof(IPHeader_t), sizeof(UDPHeader_t));
+		/*printf("\n");*/
+		udp_h->DstIP = ip_header->DstIP;
+		udp_h->SrcIP = ip_header->SrcIP;
+		udp_h->mbz = 0x00;
+		udp_h->Protocol = ip_header->Protocol;
+		udp_h->PayLen = udp_header->PayLen;
+		u_char* buff1 = (u_char*)malloc(ntohs(udp_header->PayLen)+sizeof(UDP_H));
+		printf("%d", ntohs(udp_header->PayLen));
+		memcpy(buff1, (char *)udp_h, sizeof(UDP_H));
+		memcpy(buff1 + sizeof(UDP_H), (u_char*)buff + sizeof(FramHeader_t) + sizeof(IPHeader_t), buff_size- sizeof(FramHeader_t) - sizeof(IPHeader_t));
+		//for (int i = 0; i < (ntohs(udp_header->PayLen) + sizeof(UDP_H)); i++)
+		//{
+		//	printf("%02x", buff1[i]);
+		//	//printf("\n");
+		//}
+		//printf("\n");
+		memset(buff1 + 18, 0x00, 1);
+		memset(buff1 + 19, 0x00, 1);
+		unsigned short sum = 0;
+
+		sum = check_sum((unsigned char*)buff1, (ntohs(udp_header->PayLen) + sizeof(UDP_H)));
+		printf("%02x", sum);
+		printf("\n");
+		free(buff1);
+		free(buff);
+		free(ptk_header);
+		free(fheader);
+		free(ip_header);
+		free(udp_header);
+		free(udp_h);
+		//cc--;
+	}
+	return 0;
+}
 	//while (1)
 	//{
 	//	if (fread(ptk_header, 16, 1, fr) != 1)
@@ -57,57 +112,58 @@ int main()
 	//	printf("\n");
 	//	free(buff);
 	//}
-	while (1)
-	{
-		int i;
-		int buff_size = 0;
-		if (fread(ptk_header, 16, 1, fr) != 1)
-		{
-			printf("文件头读取失败\n");
-			exit(0);
-		}
-		fseek(fr, 14, SEEK_CUR);//屏蔽mac层的信息
-		if (fread(ip_header, sizeof(IPHeader_t), 1, fr) != 1)
-		{
-			printf("IP头读取失败\n");
-			exit(0);
-		}
-		if (fread(udp_header, sizeof(UDPHeader_t), 1, fr) != 1)
-		{
-			printf("UDP头读取失败\n");
-			exit(0);
-		}
-		fseek(fr, -8, SEEK_CUR);
-		unsigned char *frame;
-		frame = (unsigned char*)malloc(ntohs(udp_header->PayLen));
-		fread(frame, ntohs(udp_header->PayLen), 1, fr);
-		for (int j = 0; j < ntohs(udp_header->PayLen); j++)
-		{
-			printf("%02x", frame[j]);
-		}
-		printf("\n");
-		printf("%d\n", ntohs(udp_header->PayLen));
-		buff_size = ntohs(udp_header->PayLen) + 12;
-		u_char* buff = (u_char*)malloc(buff_size);
-		memset(buff, 0x00, buff_size);
-		udp_h->DstIP = ip_header->DstIP;
-		udp_h->SrcIP = ip_header->SrcIP;
-		udp_h->mbz = 0x00;
-		udp_h->Protocol = ip_header->Protocol;
-		udp_h->PayLen = udp_header->PayLen;
-		memcpy(buff, (char *)udp_h, sizeof(UDP_H));
-		for (int j = 0; j < sizeof(UDP_H); j++)
-		{
-			printf("%02x", buff[j]);
-		}
-		printf("\n");
+	//while (1)
+	//{
+	//	int i;
+	//	int buff_size = 0;
+	//	if (fread(ptk_header, 16, 1, fr) != 1)
+	//	{
+	//		printf("文件头读取失败\n");
+	//		exit(0);
+	//	}
+	//	fseek(fr, 14, SEEK_CUR);//屏蔽mac层的信息
+	//	if (fread(ip_header, sizeof(IPHeader_t), 1, fr) != 1)
+	//	{
+	//		printf("IP头读取失败\n");
+	//		exit(0);
+	//	}
+
+	//	if (fread(udp_header, sizeof(UDPHeader_t), 1, fr) != 1)
+	//	{
+	//		printf("UDP头读取失败\n");
+	//		exit(0);
+	//	}
+	//	fseek(fr, -8, SEEK_CUR);
+	//	unsigned char *frame;
+	//	frame = (unsigned char*)malloc(ntohs(udp_header->PayLen));
+	//	fread(frame, ntohs(udp_header->PayLen), 1, fr);
+	//	for (int j = 0; j < ntohs(udp_header->PayLen); j++)
+	//	{
+	//		printf("%02x", frame[j]);
+	//	}
+	//	printf("\n");
+	//	printf("%d\n", ntohs(udp_header->PayLen));
+	//	buff_size = ntohs(udp_header->PayLen) + 12;
+	//	u_char* buff = (u_char*)malloc(buff_size);
+	//	memset(buff, 0x00, buff_size);
+	//	udp_h->DstIP = ip_header->DstIP;
+	//	udp_h->SrcIP = ip_header->SrcIP;
+	//	udp_h->mbz = 0x00;
+	//	udp_h->Protocol = ip_header->Protocol;
+	//	udp_h->PayLen = udp_header->PayLen;
+	//	memcpy(buff, (char *)udp_h, sizeof(UDP_H));
+	//	for (int j = 0; j < sizeof(UDP_H); j++)
+	//	{
+	//		printf("%02x", buff[j]);
+	//	}
+	//	printf("\n");
 		/*memcpy(buff + sizeof(UDP_H), (char *)udp_header, sizeof(UDPHeader_t));
 		for (int j = 0; j < (sizeof(UDP_H)+ sizeof(UDPHeader_t)); j++)
 		{
 		printf("%02x", buff[j]);
 		}
 		printf("\n");*/
-		memcpy(buff + sizeof(UDP_H), (char*)frame, ntohs(udp_header->PayLen));
+		/*memcpy(buff + sizeof(UDP_H), (char*)frame, ntohs(udp_header->PayLen));
 		for (int j = 0; j < (sizeof(UDP_H) + ntohs(udp_header->PayLen)); j++)
 		{
 			printf("%02x", buff[j]);
@@ -125,9 +181,9 @@ int main()
 		sum = check_sum((unsigned char*)buff, buff_size);
 		printf("%02x", sum);
 		free(buff);
-	}
+	}*/
 	
-}
+
 //
 //typedef struct {
 //	int srcIp;

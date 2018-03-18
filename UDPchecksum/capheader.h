@@ -99,18 +99,18 @@ unsigned short check_sum(unsigned char *a, int len)
 {
 	for (int j = 0; j < len; j++)
 	{
-		printf("%02x", a[j]);
+		//printf("%02x", a[j]);
 	}
-	printf("\n");
+	//printf("\n");
 	unsigned long sum = 0;
 
 	while (len > 1) {
 		sum += ((*a)<<8);
-		printf("%02x",*a);
+		//printf("%02x",*a);
 		*a++;
 		len--;
 		sum += (*a);
-		printf("%02x", *a);
+		//printf("%02x", *a);
 		*a++;
 		len--;
 		
